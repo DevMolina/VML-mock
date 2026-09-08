@@ -110,6 +110,13 @@ Formas de revisarlo:
   VSCode, etc.) abriendo `mock-server/data/requests.db`, tabla `requests`.
 - Ruta configurable con la variable de entorno `DB_PATH`.
 
+> ⚠️ **En Render (free tier) el filesystem es efímero**: este archivo
+> desaparece cada vez que el servicio se reinicia, redeploya o "duerme" por
+> inactividad (~15 min). Sirve para depurar peticiones mientras el servicio
+> está activo, no para conservar historial entre sesiones. Para persistencia
+> real haría falta un plan pago con Persistent Disk, o migrar a Render
+> Postgres.
+
 ## Notas de implementación
 
 - Las sesiones se guardan **en memoria** (`Map`), se pierden al reiniciar el
