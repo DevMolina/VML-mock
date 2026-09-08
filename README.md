@@ -1,6 +1,6 @@
 # Mock Server - API Via Rápida
 
-Servidor mock en Node.js/Express que implementa los 4 endpoints documentados en
+Servidor mock en Node.js/Express que implementa los endpoints documentados en
 `../API_ViaRapida_Mock_Actualizada.md` y `../API_ViaRapida_OpenAPI_3.0.yaml`.
 
 ## Flujo de integración
@@ -8,9 +8,13 @@ Servidor mock en Node.js/Express que implementa los 4 endpoints documentados en
 ```text
 1. POST /api/auth/login          -> obtiene cookie sessionId
 2. GET  /api/auth/get-user-token -> obtiene token (JWT), usando la cookie
-3. GET  /api/via-rapida/listar-paquetes   (Authorization: Bearer + cookie)
-4. POST /api/via-rapida/registro-bro      (Authorization: Bearer + cookie)
+3. GET  /api/via-rapida/listar-paquetes   (solo Authorization: Bearer)
+4. POST /api/via-rapida/registro-bro      (solo Authorization: Bearer)
+5. POST /api/auth/logout
 ```
+
+> Ajustado según tráfico real de integración: los pasos 3 y 4 **no**
+> requieren la cookie `sessionId`, solo el header `Authorization`.
 
 ## Instalación y arranque
 
@@ -64,19 +68,28 @@ Sin cookie o sesión inválida/expirada → `401`:
 ```
 
 ### `GET /api/via-rapida/listar-paquetes`
-> ⚠️ **Validación de auth desactivada TEMPORALMENTE** (ver `server.js`, busca
-> el `TODO`). Ahora mismo responde sin necesidad de `Authorization`/`sessionId`,
-> para depurar cómo llegan las peticiones del cliente real. Devuelve un
-> catálogo de 3 paquetes de ejemplo.
+Protegido: requiere `Authorization: Bearer {token}` de una sesión activa. La
+cookie `sessionId` **no** es necesaria en este endpoint (ajustado tras ver
+que el cliente real no la reenvía). Devuelve un catálogo de 3 paquetes de
+ejemplo.
 
 ### `POST /api/via-rapida/registro-bro`
-> ⚠️ **Validación de auth desactivada TEMPORALMENTE**, mismo motivo que arriba.
-
+Protegido igual que el anterior (solo `Authorization: Bearer {token}`).
 Responde `200`:
 - `success: true` si `paquete_id` existe en el catálogo.
 - `success: false` si `paquete_id` no existe, **o** si se envía el header
   `X-Mock-Scenario: error` para forzar el escenario de fallo en cualquier
   prueba.
+
+### `POST /api/auth/logout`
+Endpoint no incluido en la especificación original; agregado al confirmarse
+en tráfico real que la aplicación lo consume. Cierra la sesión de la cookie
+`sessionId` si está presente; si no lo está (como ocurre en el consumo real
+observado), responde éxito igualmente.
+
+```json
+{ "success": true, "message": "Sesión cerrada correctamente" }
+```
 
 ### `GET /api/_debug/requests?limit=50`
 Devuelve las últimas peticiones registradas en la base de datos (ver
@@ -89,8 +102,8 @@ headers/body/cookies mandó el cliente real en cada llamada.
 |---|---|
 | Login inválido | Enviar `email`/`password` distintos al usuario de prueba |
 | Token sin sesión | Llamar a `get-user-token` sin la cookie `sessionId` |
-| Sin autorización | Omitir header `Authorization` o cookie `sessionId` en los endpoints protegidos |
-| Sesión/token inválido | Enviar un `sessionId` o `token` que no coincidan entre sí |
+| Sin autorización | Omitir o dañar el header `Authorization` en `listar-paquetes`/`registro-bro` |
+| Sesión cerrada/expirada | Llamar a `logout` y luego reusar el mismo `token` en un endpoint protegido |
 | Registro fallido | Header `X-Mock-Scenario: error`, o un `paquete_id` que no exista |
 
 ## Registro de peticiones entrantes (SQLite)

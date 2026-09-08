@@ -3,7 +3,12 @@ const cookieParser = require("cookie-parser");
 const cors = require("cors");
 
 const { TEST_USER, PACKAGES } = require("./src/data");
-const { createSession, getSessionToken, requireAuth } = require("./src/auth");
+const {
+  createSession,
+  getSessionToken,
+  destroySession,
+  requireAuth,
+} = require("./src/auth");
 const { logRequest, getRequests } = require("./src/db");
 
 const app = express();
@@ -73,15 +78,28 @@ app.get("/api/auth/get-user-token", (req, res) => {
   res.status(200).json({ token });
 });
 
-// TODO: validación de auth (requireAuth) quitada TEMPORALMENTE en
-// listar-paquetes y registro-bro para depurar el consumo real del cliente.
-// Volver a agregar `requireAuth` como segundo argumento cuando ya no se
-// necesite.
-app.get("/api/via-rapida/listar-paquetes", (req, res) => {
+// Endpoint no documentado originalmente, agregado tras observar que el
+// cliente real lo consume. Es tolerante: cierra la sesión si hay cookie
+// `sessionId`, y responde éxito de todas formas si no la hay (el cliente
+// real no la reenvía en esta llamada).
+app.post("/api/auth/logout", (req, res) => {
+  const sessionId = req.cookies ? req.cookies.sessionId : undefined;
+  if (sessionId) {
+    destroySession(sessionId);
+  }
+
+  res.clearCookie("sessionId");
+  res.status(200).json({
+    success: true,
+    message: "Sesión cerrada correctamente",
+  });
+});
+
+app.get("/api/via-rapida/listar-paquetes", requireAuth, (req, res) => {
   res.status(200).json({ paquetes: PACKAGES });
 });
 
-app.post("/api/via-rapida/registro-bro", (req, res) => {
+app.post("/api/via-rapida/registro-bro", requireAuth, (req, res) => {
   const body = req.body || {};
   const forceError = req.headers["x-mock-scenario"] === "error";
   const paqueteExiste = PACKAGES.some((p) => p.paquete_id === body.paquete_id);

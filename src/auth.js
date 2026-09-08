@@ -28,24 +28,23 @@ function getSessionToken(sessionId) {
   return session.token;
 }
 
+function destroySession(sessionId) {
+  return sessions.delete(sessionId);
+}
+
+// Ajustado según tráfico real: el cliente consumidor solo envía el header
+// `Authorization: Bearer {jwt}` en listar-paquetes/registro-bro, sin
+// reenviar la cookie `sessionId`. Se valida el JWT y que su sesión (sid)
+// siga activa server-side; la cookie ya no es obligatoria aquí.
 function requireAuth(req, res, next) {
   const authHeader = req.headers["authorization"] || "";
   const [scheme, token] = authHeader.split(" ");
-  const sessionId = req.cookies ? req.cookies.sessionId : undefined;
 
-  if (scheme !== "Bearer" || !token || !sessionId) {
+  if (scheme !== "Bearer" || !token) {
     return res.status(401).json({
       success: false,
-      message:
-        "Autorización requerida: se espera header 'Authorization: Bearer {jwt}' y cookie 'sessionId'",
+      message: "Autorización requerida: se espera header 'Authorization: Bearer {jwt}'",
     });
-  }
-
-  const session = sessions.get(sessionId);
-  if (!session || session.expiresAt < Date.now()) {
-    return res
-      .status(401)
-      .json({ success: false, message: "Sesión inválida o expirada" });
   }
 
   let payload;
@@ -55,14 +54,21 @@ function requireAuth(req, res, next) {
     return res.status(401).json({ success: false, message: "Token inválido" });
   }
 
-  if (payload.sid !== sessionId) {
+  const session = sessions.get(payload.sid);
+  if (!session || session.expiresAt < Date.now()) {
     return res
       .status(401)
-      .json({ success: false, message: "El token no corresponde a la sesión indicada" });
+      .json({ success: false, message: "Sesión inválida o expirada" });
   }
 
   req.userId = session.userId;
   next();
 }
 
-module.exports = { createSession, getSessionToken, requireAuth, sessions };
+module.exports = {
+  createSession,
+  getSessionToken,
+  destroySession,
+  requireAuth,
+  sessions,
+};
