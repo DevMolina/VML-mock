@@ -64,16 +64,24 @@ Sin cookie o sesión inválida/expirada → `401`:
 ```
 
 ### `GET /api/via-rapida/listar-paquetes`
-Protegido. Requiere `Authorization: Bearer {token}` **y** cookie `sessionId`
-válidos y correspondientes a la misma sesión (validación estricta). Devuelve
-un catálogo de 3 paquetes de ejemplo.
+> ⚠️ **Validación de auth desactivada TEMPORALMENTE** (ver `server.js`, busca
+> el `TODO`). Ahora mismo responde sin necesidad de `Authorization`/`sessionId`,
+> para depurar cómo llegan las peticiones del cliente real. Devuelve un
+> catálogo de 3 paquetes de ejemplo.
 
 ### `POST /api/via-rapida/registro-bro`
-Protegido igual que el anterior. Responde `200`:
+> ⚠️ **Validación de auth desactivada TEMPORALMENTE**, mismo motivo que arriba.
+
+Responde `200`:
 - `success: true` si `paquete_id` existe en el catálogo.
 - `success: false` si `paquete_id` no existe, **o** si se envía el header
   `X-Mock-Scenario: error` para forzar el escenario de fallo en cualquier
   prueba.
+
+### `GET /api/_debug/requests?limit=50`
+Devuelve las últimas peticiones registradas en la base de datos (ver
+sección siguiente), en orden descendente. Útil para ver exactamente qué
+headers/body/cookies mandó el cliente real en cada llamada.
 
 ## Escenarios de error para pruebas
 
@@ -85,12 +93,27 @@ Protegido igual que el anterior. Responde `200`:
 | Sesión/token inválido | Enviar un `sessionId` o `token` que no coincidan entre sí |
 | Registro fallido | Header `X-Mock-Scenario: error`, o un `paquete_id` que no exista |
 
+## Registro de peticiones entrantes (SQLite)
+
+Cada petición que llega al servidor (cualquier endpoint) se guarda en una
+base de datos SQLite local: `data/requests.db` (se crea sola al arrancar; el
+archivo no se versiona, está en `.gitignore`).
+
+Se guarda: método, path, IP, headers, query, params, body y cookies, tal
+como llegaron. Sirve para depurar cómo un cliente real está consumiendo el
+mock (por ejemplo, si falta un header o el body no tiene el formato
+esperado).
+
+Formas de revisarlo:
+- Vía API: `GET /api/_debug/requests?limit=50`
+- Directamente con un cliente de SQLite (DB Browser for SQLite, extensión de
+  VSCode, etc.) abriendo `mock-server/data/requests.db`, tabla `requests`.
+- Ruta configurable con la variable de entorno `DB_PATH`.
+
 ## Notas de implementación
 
 - Las sesiones se guardan **en memoria** (`Map`), se pierden al reiniciar el
   servidor y expiran a la hora de creadas.
-- No hay base de datos ni persistencia en disco; es solo para pruebas de
-  integración/frontend.
 - CORS está habilitado con `credentials: true` para poder probar desde un
   frontend en otro origen (recuerda usar `credentials: 'include'` en tus
   llamadas `fetch`/`axios`).

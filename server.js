@@ -4,6 +4,7 @@ const cors = require("cors");
 
 const { TEST_USER, PACKAGES } = require("./src/data");
 const { createSession, getSessionToken, requireAuth } = require("./src/auth");
+const { logRequest, getRequests } = require("./src/db");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -12,8 +13,21 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 app.use(cookieParser());
 
+// Registra en SQLite (data/requests.db) cada petición entrante para poder
+// inspeccionar cómo llega (headers, query, body, cookies) desde el cliente real.
+app.use((req, res, next) => {
+  logRequest(req);
+  next();
+});
+
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });
+});
+
+// Consulta las últimas peticiones registradas: GET /api/_debug/requests?limit=50
+app.get("/api/_debug/requests", (req, res) => {
+  const limit = Number(req.query.limit) || 50;
+  res.status(200).json({ requests: getRequests(limit) });
 });
 
 app.post("/api/auth/login", (req, res) => {
@@ -59,11 +73,15 @@ app.get("/api/auth/get-user-token", (req, res) => {
   res.status(200).json({ token });
 });
 
-app.get("/api/via-rapida/listar-paquetes", requireAuth, (req, res) => {
+// TODO: validación de auth (requireAuth) quitada TEMPORALMENTE en
+// listar-paquetes y registro-bro para depurar el consumo real del cliente.
+// Volver a agregar `requireAuth` como segundo argumento cuando ya no se
+// necesite.
+app.get("/api/via-rapida/listar-paquetes", (req, res) => {
   res.status(200).json({ paquetes: PACKAGES });
 });
 
-app.post("/api/via-rapida/registro-bro", requireAuth, (req, res) => {
+app.post("/api/via-rapida/registro-bro", (req, res) => {
   const body = req.body || {};
   const forceError = req.headers["x-mock-scenario"] === "error";
   const paqueteExiste = PACKAGES.some((p) => p.paquete_id === body.paquete_id);
