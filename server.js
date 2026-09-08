@@ -3,7 +3,7 @@ const cookieParser = require("cookie-parser");
 const cors = require("cors");
 
 const { TEST_USER, PACKAGES } = require("./src/data");
-const { createSession, requireAuth } = require("./src/auth");
+const { createSession, getSessionToken, requireAuth } = require("./src/auth");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -25,7 +25,7 @@ app.post("/api/auth/login", (req, res) => {
       .json({ success: false, message: "Credenciales inválidas" });
   }
 
-  const { sessionId, token } = createSession(TEST_USER.id);
+  const { sessionId } = createSession(TEST_USER.id);
 
   res.cookie("sessionId", sessionId, { httpOnly: true, sameSite: "lax" });
   res.status(200).json({
@@ -36,10 +36,27 @@ app.post("/api/auth/login", (req, res) => {
       admin: TEST_USER.admin,
       tokenId: TEST_USER.tokenId,
     },
-    // Extensión del mock (no está en el documento original): JWT a usar
-    // como "Authorization: Bearer {token}" en los endpoints protegidos.
-    token,
   });
+});
+
+app.get("/api/auth/get-user-token", (req, res) => {
+  const sessionId = req.cookies ? req.cookies.sessionId : undefined;
+
+  if (!sessionId) {
+    return res.status(401).json({
+      success: false,
+      message: "Cookie 'sessionId' requerida (inicia sesión primero)",
+    });
+  }
+
+  const token = getSessionToken(sessionId);
+  if (!token) {
+    return res
+      .status(401)
+      .json({ success: false, message: "Sesión inválida o expirada" });
+  }
+
+  res.status(200).json({ token });
 });
 
 app.get("/api/via-rapida/listar-paquetes", requireAuth, (req, res) => {

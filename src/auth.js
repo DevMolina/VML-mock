@@ -4,19 +4,28 @@ const jwt = require("jsonwebtoken");
 const JWT_SECRET = process.env.JWT_SECRET || "mock-secret-via-rapida";
 const SESSION_TTL_MS = 60 * 60 * 1000; // 1 hora
 
-// sessionId -> { userId, expiresAt }
+// sessionId -> { userId, token, expiresAt }
 const sessions = new Map();
 
 function createSession(userId) {
   const sessionId = crypto.randomBytes(16).toString("hex");
   const expiresAt = Date.now() + SESSION_TTL_MS;
-  sessions.set(sessionId, { userId, expiresAt });
 
   const token = jwt.sign({ sub: userId, sid: sessionId }, JWT_SECRET, {
     expiresIn: "1h",
   });
 
+  sessions.set(sessionId, { userId, token, expiresAt });
+
   return { sessionId, token };
+}
+
+function getSessionToken(sessionId) {
+  const session = sessions.get(sessionId);
+  if (!session || session.expiresAt < Date.now()) {
+    return null;
+  }
+  return session.token;
 }
 
 function requireAuth(req, res, next) {
@@ -56,4 +65,4 @@ function requireAuth(req, res, next) {
   next();
 }
 
-module.exports = { createSession, requireAuth, sessions };
+module.exports = { createSession, getSessionToken, requireAuth, sessions };
